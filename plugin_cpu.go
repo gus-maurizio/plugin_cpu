@@ -29,11 +29,10 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	cpumax := 0.0
 	cpumin := 100.0
 	cpulat := 0.0
-	for cpuid, cpup := range(PluginData["cpupercent"].([]float64)) {
+	for _, cpup := range(PluginData["cpupercent"].([]float64)) {
 		if cpup > cpumax {cpumax = cpup}
 		if cpup < cpumin {cpumin = cpup}
 		cpuavg += cpup
-		fmt.Printf("cpuid %v cpup %v\n",cpuid,cpup)
 		cpulat += cpup * PluginEnv[0].Mhz / 100.0
 	}
 	// Prepare the data
