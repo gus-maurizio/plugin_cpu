@@ -47,7 +47,21 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	PluginData["saturation"]    = 100.0 * cpumax / PluginConfig["alert"]["anycpu"]["design"].(float64)
 	PluginData["errors"]    	= 0.00
 
-	myMeasure, _				:= json.Marshal(PluginData["cpupercent"])
+	// Prepare a better answer!
+	PluginData["measure"]		= struct {	Cpupercent 	[]float64
+							Cpu		float64
+							Use		float64
+							Latency		float64
+							Throughput	float64
+							Throughputmax	float64
+					} {		Cpupercent:	PluginData["cpupercent"].([]float64),
+							Cpu:		PluginData["cpu"].(float64),
+							Use:		PluginData["use"].(float64),
+							Throughput:	PluginData["throughput"].(float64),
+							Throughputmax:	PluginData["throughputmax"].(float64),
+					}
+
+	myMeasure, _				:= json.Marshal(PluginData["measure"])
 	myMeasureRaw, _ 			:= json.Marshal(PluginData)
 	return myMeasure, myMeasureRaw, float64(time.Now().UnixNano())/1e9
 }
