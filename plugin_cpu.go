@@ -13,11 +13,17 @@ var PluginEnv		[]cpu.InfoStat
 var PluginConfig 	map[string]map[string]map[string]interface{}
 var PluginData		map[string]interface{}
 
+var TickCpupercent, CountCpupercent 		int = 1, 0
+var NumCpus			int = 1
+var MHz 			float64
 
 func PluginMeasure() ([]byte, []byte, float64) {
 	// Get measurement of CPU
 	PluginData["cpupercent"], _ = cpu.Percent(0, true)
-	PluginData["cputimes"],   _ = cpu.Times(true)
+	if TickCpupercent != 0 && CountCpupercent == 0 {
+		PluginData["cputimes"],   _ = cpu.Times(true)
+		CountCpupercent = (CountCpupercent + 1) % TickCpupercent
+	}
 	// Make it understandable
 	// Apply USE methodology for CPU
 	// U: 	Usage (usually throughput/latency indicators)
@@ -36,33 +42,34 @@ func PluginMeasure() ([]byte, []byte, float64) {
 		cpulat += cpup * PluginEnv[0].Mhz / 100.0
 	}
 	// Prepare the data
-	PluginData["cpu"]    		= cpuavg / float64(len(PluginData["cpupercent"].([]float64)))
+	PluginData["cpu"]    		= cpuavg / float64(NumCpus)
 	PluginData["cpumax"] 		= cpumax
 	PluginData["cpumin"] 		= cpumin
 	PluginData["use"]    		= PluginData["cpu"]
-	PluginData["latency"]  		= 1e3 / PluginEnv[0].Mhz
+	PluginData["latency"]  		= 1e3 / MHz
 	PluginData["throughput"]  	= cpulat
-	PluginData["throughputmax"] = PluginEnv[0].Mhz * float64(len(PluginData["cpupercent"].([]float64)))
+	PluginData["throughputmax"] = MHz * float64(NumCpus)
 	PluginData["use"]    		= PluginData["cpu"]
-	PluginData["saturation"]    = 100.0 * cpumax / PluginConfig["alert"]["anycpu"]["design"].(float64)
+	PluginData["saturation"]    = 100.0 * cpumax / PluginConfig["plugin"]["config"]["saturation"].(float64)
 	PluginData["errors"]    	= 0.00
 
 	// Prepare a better answer!
-	PluginData["measure"]		= struct {	Cpupercent 	[]float64
-							Cpu		float64
-							Use		float64
-							Latency		float64
-							Throughput	float64
-							Throughputmax	float64
-					} {		Cpupercent:	PluginData["cpupercent"].([]float64),
-							Cpu:		PluginData["cpu"].(float64),
-							Use:		PluginData["use"].(float64),
-							Throughput:	PluginData["throughput"].(float64),
-							Throughputmax:	PluginData["throughputmax"].(float64),
-					}
+	PluginData["measure"] = struct {	
+			Cpupercent 		[]float64	`json:"cpupercent"`
+			Cpu				float64		`json:"cpu"`
+			Use				float64		`json:"use"`
+			Latency			float64		`json:"latency"`
+			Throughput		float64		`json:"throughput"`
+			Throughputmax	float64		`json:"throughputmax"`
+	} {		Cpupercent:		PluginData["cpupercent"].([]float64),
+			Cpu:			PluginData["cpu"].(float64),
+			Use:			PluginData["use"].(float64),
+			Throughput:		PluginData["throughput"].(float64),
+			Throughputmax:	PluginData["throughputmax"].(float64),
+	}
 
-	myMeasure, _				:= json.Marshal(PluginData["measure"])
-	myMeasureRaw, _ 			:= json.Marshal(PluginData)
+	myMeasure, _		:= json.Marshal(PluginData["measure"])
+	myMeasureRaw, _ 	:= json.Marshal(PluginData)
 	return myMeasure, myMeasureRaw, float64(time.Now().UnixNano())/1e9
 }
 
@@ -74,7 +81,7 @@ func PluginAlert(measure []byte) (string, string, bool, error) {
 	alertMsg  := ""
 	alertLvl  := ""
 	alertFlag := false
-	alertErr  := errors.New("nothing")
+	alertErr  := errors.New("")
 
 	// Check that the CPU overall value is within range
 	switch {
@@ -129,27 +136,51 @@ func InitPlugin(config string) () {
 	if PluginConfig == nil {
 		PluginConfig = make(map[string]map[string]map[string]interface{},20)
 	}
-	PluginEnv, _	= cpu.Info()
-	cpu.Percent(0, true)	// this will initialize for future calls!
-	time.Sleep(100 * time.Millisecond)	// to initialize cpu.Percent
+	PluginEnv, _	=  cpu.Info()
+	cpu.Percent(0,true)	// needs initialization before next call to avoid a 0 answer
+	initcpu, _ 		:= cpu.Times(true)
+
+	NumCpus			=  len(initcpu)
+	MHz 			=  PluginEnv[0].Mhz
 	err := json.Unmarshal([]byte(config), &PluginConfig)
 	if err != nil {
 		log.WithFields(log.Fields{"config": config}).Error("failed to unmarshal config")
 	}
+	TickCpupercent	= int(PluginConfig["plugin"]["config"]["cputimes"].(float64))
 	log.WithFields(log.Fields{"pluginconfig": PluginConfig, "pluginenv": PluginEnv }).Info("InitPlugin")
 }
 
 
 func main() {
-	// for testing purposes only, can safely not exist!
-	// config := " { \"alert\": {    \"blue\":   [0,  3], \"green\":  [3,  60], \"yellow\": [60, 80], \"orange\": [80, 90], \"red\":    [90, 100] } } "
 	config  := 	`
-				{"alert": { 
-				            "cpu": 		{"low": 2, "design": 60.0, "engineered": 80.0},
-				            "anycpu":   {"low": 0, "design": 75.0, "engineered": 90.0}
-				          }
+				{
+					"alert": 
+					{
+						"cpu":
+						{
+							"low": 			2,
+							"design": 		60.0,
+							"engineered":	80.0
+						},
+				    	"anycpu":
+				    	{
+				    		"low": 			0,
+				    		"design":		75.0,
+				    		"engineered":	90.0
+				    	}
+				    },
+
+					"plugin": 
+					{ 
+						"config":
+						{
+							"cputimes":		10,
+							"saturation":	75.0
+						}
+					}
 				}
 				`
+
 	InitPlugin(config)
 	log.WithFields(log.Fields{"PluginConfig": PluginConfig}).Info("InitPlugin")
 	tickd := 1* time.Second

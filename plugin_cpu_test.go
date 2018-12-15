@@ -7,11 +7,32 @@ import (
 )
 
 var config string = `
-	{"alert": { 
-	            "cpu": 		{"low": 2, "design": 60.0, "engineered": 80.0},
-	            "anycpu":   {"low": 0, "design": 75.0, "engineered": 90.0}
-	          }
-	}
+				{
+					"alert": 
+					{
+						"cpu":
+						{
+							"low": 			2,
+							"design": 		60.0,
+							"engineered":	80.0
+						},
+				    	"anycpu":
+				    	{
+				    		"low": 			0,
+				    		"design":		75.0,
+				    		"engineered":	90.0
+				    	}
+				    },
+
+					"plugin": 
+					{ 
+						"config":
+						{
+							"cputimes":		10,
+							"saturation":	75.0
+						}
+					}
+				}
 `
 
 func TestInit(t *testing.T) {
