@@ -6,6 +6,9 @@ import (
 		"fmt"
 		"github.com/shirou/gopsutil/cpu"
 		log "github.com/sirupsen/logrus"
+		"github.com/prometheus/client_golang/prometheus"
+		"github.com/prometheus/client_golang/prometheus/promhttp"
+		"net/http"
     	"time"
 )
 
@@ -16,6 +19,27 @@ var PluginData		map[string]interface{}
 var TickCpupercent, CountCpupercent 		int = 1, 0
 var NumCpus			int = 1
 var MHz 			float64
+
+
+//Define the metrics we wish to expose
+
+var overheadMetric = prometheus.NewGaugeVec(
+        prometheus.GaugeOpts{
+                Name: "agent_plugin_overhead",
+		Help: "Plugin measure overhead in microseconds",
+        },
+        []string{"plugin"},
+)
+
+var messageMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "agent_plugin_ticks",
+		Help: "Number of times plugin has executed.",
+	},
+	[]string{"plugin"},
+)
+
+
 
 func PluginMeasure() ([]byte, []byte, float64) {
 	// Get measurement of CPU
@@ -183,6 +207,25 @@ func main() {
 					}
 				}
 				`
+
+
+	// Register metrics with prometheus
+	prometheus.MustRegister(overheadMetric)
+	prometheus.MustRegister(messageMetric)
+
+
+	//--------------------------------------------------------------------------//
+	// time to start a prometheus metrics server
+	// and export any metrics on the /metrics endpoint.
+	http.Handle("/metrics", promhttp.Handler())
+	go func() {
+		http.ListenAndServe(":8999", nil)
+	}()
+
+	// Update metrics related to the plugin
+	overheadMetric.With(prometheus.Labels{"plugin":  "cpu"}).Set(1.0)
+	messageMetric.With( prometheus.Labels{"plugin":  "cpu"}).Inc()
+
 
 	InitPlugin(config)
 	log.WithFields(log.Fields{"PluginConfig": PluginConfig}).Info("InitPlugin")
