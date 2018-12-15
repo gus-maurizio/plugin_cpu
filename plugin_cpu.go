@@ -21,24 +21,24 @@ var NumCpus			int = 1
 var MHz 			float64
 
 
-//Define the metrics we wish to expose
+//	Define the metrics we wish to expose
+var cpuIndicator = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "sreagent_cpu_metrics",
+		Help: "CPU Utilization Saturation Errors Throughput Latency",
+	}, []string{"use"} )
 
-var overheadMetric = prometheus.NewGaugeVec(
-        prometheus.GaugeOpts{
-                Name: "agent_plugin_overhead",
-		Help: "Plugin measure overhead in microseconds",
-        },
-        []string{"plugin"},
-)
+var cpuPercent = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "sreagent_cpu_percent",
+		Help: "Host CPU utilization per core 0/00",
+	}, []string{"cpu"} )
 
-var messageMetric = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name: "agent_plugin_ticks",
-		Help: "Number of times plugin has executed.",
-	},
-	[]string{"plugin"},
-)
-
+var cpuMhz = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "sreagent_cpu_mhz",
+		Help: "Host CPU utilization per core MHz",
+	}, []string{"cpu"} )
 
 
 func PluginMeasure() ([]byte, []byte, float64) {
@@ -59,11 +59,14 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	cpumax := 0.0
 	cpumin := 100.0
 	cpulat := 0.0
-	for _, cpup := range(PluginData["cpupercent"].([]float64)) {
+	for cpuidx, cpup := range(PluginData["cpupercent"].([]float64)) {
 		if cpup > cpumax {cpumax = cpup}
 		if cpup < cpumin {cpumin = cpup}
 		cpuavg += cpup
-		cpulat += cpup * PluginEnv[0].Mhz / 100.0
+		cpulat += cpup * MHz / 100.0
+		// Update metrics related to the plugin
+		cpuPercent.With(prometheus.Labels{"cpu": fmt.Sprintf("cpu%d",cpuidx)}).Set(cpup)
+		cpuMhz.With(prometheus.Labels{"cpu": fmt.Sprintf("cpu%d",cpuidx)}).Set(cpup * MHz / 100.0)
 	}
 	// Prepare the data
 	PluginData["cpu"]    		= cpuavg / float64(NumCpus)
@@ -76,6 +79,12 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	PluginData["use"]    		= PluginData["cpu"]
 	PluginData["saturation"]    = 100.0 * cpumax / PluginConfig["plugin"]["config"]["saturation"].(float64)
 	PluginData["errors"]    	= 0.00
+
+	// Update metrics related to the plugin
+	cpuIndicator.With(prometheus.Labels{"use":  "utilization"}).Set(PluginData["use"].(float64))
+	cpuIndicator.With(prometheus.Labels{"use":  "saturation"}).Set(PluginData["saturation"].(float64))
+	cpuIndicator.With(prometheus.Labels{"use":  "throughput"}).Set(PluginData["throughput"].(float64))
+	cpuIndicator.With(prometheus.Labels{"use":  "errors"}).Set(PluginData["errors"].(float64))
 
 	// Prepare a better answer!
 	PluginData["measure"] = struct {	
@@ -162,6 +171,11 @@ func InitPlugin(config string) () {
 	}
 
 	cpu.Percent(0,true)	// needs initialization before next call to avoid a 0 answer
+	
+	// Register metrics with prometheus
+	prometheus.MustRegister(cpuIndicator)
+	prometheus.MustRegister(cpuPercent)
+	prometheus.MustRegister(cpuMhz)
 
 	PluginEnv, _	=  cpu.Info()
 	initcpu, _ 		:= cpu.Times(true)
@@ -208,12 +222,6 @@ func main() {
 				}
 				`
 
-
-	// Register metrics with prometheus
-	prometheus.MustRegister(overheadMetric)
-	prometheus.MustRegister(messageMetric)
-
-
 	//--------------------------------------------------------------------------//
 	// time to start a prometheus metrics server
 	// and export any metrics on the /metrics endpoint.
@@ -221,16 +229,12 @@ func main() {
 	go func() {
 		http.ListenAndServe(":8999", nil)
 	}()
-
-	// Update metrics related to the plugin
-	overheadMetric.With(prometheus.Labels{"plugin":  "cpu"}).Set(1.0)
-	messageMetric.With( prometheus.Labels{"plugin":  "cpu"}).Inc()
-
+	//--------------------------------------------------------------------------//
 
 	InitPlugin(config)
 	log.WithFields(log.Fields{"PluginConfig": PluginConfig}).Info("InitPlugin")
 	tickd := 1* time.Second
-	for i := 1; i <= 2; i++ {
+	for i := 1; i <= 10; i++ {
 		tick := time.Now().UnixNano()
 		measure, measureraw, measuretimestamp := PluginMeasure()
 		alertmsg, alertlvl, isAlert, err := PluginAlert(measure)
