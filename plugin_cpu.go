@@ -5,6 +5,7 @@ import (
 		"errors"
 		"fmt"
 		"github.com/shirou/gopsutil/cpu"
+		"github.com/shirou/gopsutil/load"
 		log "github.com/sirupsen/logrus"
 		"github.com/prometheus/client_golang/prometheus"
 		"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -43,7 +44,11 @@ var cpuMhz = prometheus.NewGaugeVec(
 
 func PluginMeasure() ([]byte, []byte, float64) {
 	// Get measurement of CPU
-	PluginData["cpupercent"], _ = cpu.Percent(0, true)
+	PluginData["cpupercent"], _ 	= cpu.Percent(0, true)
+	lavg, _ 						:= load.Avg()
+	lmsc, _ 						:= load.Misc()
+	PluginData["loadaverage"]		= *lavg
+	PluginData["loadstats"]			= *lmsc
 	if TickCpupercent != 0 && CountCpupercent == 0 {
 		PluginData["cputimes"],   _ = cpu.Times(true)
 		CountCpupercent = (CountCpupercent + 1) % TickCpupercent
@@ -72,12 +77,15 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	PluginData["cpu"]    		= cpuavg / float64(NumCpus)
 	PluginData["cpumax"] 		= cpumax
 	PluginData["cpumin"] 		= cpumin
+	PluginData["load1m"]		= PluginData["loadaverage"].(load.AvgStat).Load1  / float64(NumCpus)
+	PluginData["load5m"]		= PluginData["loadaverage"].(load.AvgStat).Load5  / float64(NumCpus)
+	PluginData["load15m"]		= PluginData["loadaverage"].(load.AvgStat).Load15 / float64(NumCpus)
 	PluginData["use"]    		= PluginData["cpu"]
 	PluginData["latency"]  		= 1e3 / MHz
 	PluginData["throughput"]  	= cpulat
 	PluginData["throughputmax"] = MHz * float64(NumCpus)
 	PluginData["use"]    		= PluginData["cpu"]
-	PluginData["saturation"]    = 100.0 * cpumax / PluginConfig["plugin"]["config"]["saturation"].(float64)
+	PluginData["saturation"]    = PluginData["load1m"]
 	PluginData["errors"]    	= 0.00
 
 	// Update metrics related to the plugin
@@ -85,6 +93,11 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	cpuIndicator.With(prometheus.Labels{"use":  "saturation"}).Set(PluginData["saturation"].(float64))
 	cpuIndicator.With(prometheus.Labels{"use":  "throughput"}).Set(PluginData["throughput"].(float64))
 	cpuIndicator.With(prometheus.Labels{"use":  "errors"}).Set(PluginData["errors"].(float64))
+
+	cpuIndicator.With(prometheus.Labels{"use":  "load1m"}).Set(PluginData["load1m"].(float64))
+	cpuIndicator.With(prometheus.Labels{"use":  "load5m"}).Set(PluginData["load5m"].(float64))
+	cpuIndicator.With(prometheus.Labels{"use":  "load15m"}).Set(PluginData["load15m"].(float64))
+
 
 	// Prepare a better answer!
 	PluginData["measure"] = struct {	
@@ -101,9 +114,9 @@ func PluginMeasure() ([]byte, []byte, float64) {
 			Throughputmax:	PluginData["throughputmax"].(float64),
 	}
 
-	myMeasure, _		:= json.Marshal(PluginData["measure"])
-	myMeasureRaw, _ 	:= json.Marshal(PluginData)
-	return myMeasure, myMeasureRaw, float64(time.Now().UnixNano())/1e9
+	//myMeasure, _		:= json.Marshal(PluginData["measure"])
+	myMeasure, _ 	:= json.Marshal(PluginData)
+	return myMeasure, []byte(""), float64(time.Now().UnixNano())/1e9
 }
 
 func PluginAlert(measure []byte) (string, string, bool, error) {
