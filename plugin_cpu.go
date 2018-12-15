@@ -76,7 +76,6 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	PluginData["latency"]  		= 1e3 / MHz
 	PluginData["throughput"]  	= cpulat
 	PluginData["throughputmax"] = MHz * float64(NumCpus)
-	PluginData["use"]    		= PluginData["cpu"]
 	PluginData["saturation"]    = PluginData["cpu"]
 	PluginData["errors"]    	= 0.00
 
