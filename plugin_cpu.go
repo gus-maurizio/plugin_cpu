@@ -130,22 +130,25 @@ func PluginAlert(measure []byte) (string, string, bool, error) {
 
 
 func InitPlugin(config string) () {
-	if PluginData == nil {
-		PluginData = make(map[string]interface{},20)
+	if PluginData  		== nil {
+		PluginData 		=  make(map[string]interface{},20)
 	}
-	if PluginConfig == nil {
-		PluginConfig = make(map[string]map[string]map[string]interface{},20)
+	if PluginConfig  	== nil {
+		PluginConfig 	=  make(map[string]map[string]map[string]interface{},20)
 	}
-	PluginEnv, _	=  cpu.Info()
-	cpu.Percent(0,true)	// needs initialization before next call to avoid a 0 answer
-	initcpu, _ 		:= cpu.Times(true)
 
+	cpu.Percent(0,true)	// needs initialization before next call to avoid a 0 answer
+
+	PluginEnv, _	=  cpu.Info()
+	initcpu, _ 		:= cpu.Times(true)
 	NumCpus			=  len(initcpu)
 	MHz 			=  PluginEnv[0].Mhz
+
 	err := json.Unmarshal([]byte(config), &PluginConfig)
 	if err != nil {
 		log.WithFields(log.Fields{"config": config}).Error("failed to unmarshal config")
 	}
+
 	TickCpupercent	= int(PluginConfig["plugin"]["config"]["cputimes"].(float64))
 	log.WithFields(log.Fields{"pluginconfig": PluginConfig, "pluginenv": PluginEnv }).Info("InitPlugin")
 }
