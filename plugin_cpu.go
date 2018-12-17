@@ -16,7 +16,6 @@ var PluginEnv		[]cpu.InfoStat
 var PluginConfig 	map[string]map[string]map[string]interface{}
 var PluginData		map[string]interface{}
 
-var TickCpupercent, CountCpupercent 		int = 1, 0
 var NumCpus			int = 1
 var MHz 			float64
 
@@ -44,10 +43,6 @@ var cpuMhz = prometheus.NewGaugeVec(
 func PluginMeasure() ([]byte, []byte, float64) {
 	// Get measurement of CPU
 	PluginData["cpupercent"], _ 	= cpu.Percent(0, true)
-	if TickCpupercent != 0 && CountCpupercent == 0 {
-		PluginData["cputimes"],   _ = cpu.Times(true)
-		CountCpupercent = (CountCpupercent + 1) % TickCpupercent
-	}
 	// Make it understandable
 	// Apply USE methodology for CPU
 	// U: 	Usage (usually throughput/latency indicators)
@@ -187,7 +182,6 @@ func InitPlugin(config string) () {
 		log.WithFields(log.Fields{"config": config}).Error("failed to unmarshal config")
 	}
 
-	TickCpupercent	= int(PluginConfig["plugin"]["config"]["cputimes"].(float64))
 	log.WithFields(log.Fields{"pluginconfig": PluginConfig, "pluginenv": PluginEnv }).Info("InitPlugin")
 }
 
