@@ -191,28 +191,19 @@ func main() {
 				{
 					"alert": 
 					{
-						"cpu":
+						"/":
 						{
 							"low": 			2,
 							"design": 		60.0,
 							"engineered":	80.0
 						},
-				    	"anycpu":
-				    	{
-				    		"low": 			0,
-				    		"design":		75.0,
-				    		"engineered":	90.0
-				    	}
-				    },
-
-					"plugin": 
-					{ 
-						"config":
+						"/Volumes/TOSHIBA-001":
 						{
-							"cputimes":		10,
-							"saturation":	75.0
+							"low": 			22,
+							"design": 		40.0,
+							"engineered":	75.0
 						}
-					}
+				    }
 				}
 				`
 
