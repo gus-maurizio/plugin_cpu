@@ -81,20 +81,20 @@ func PluginMeasure() ([]byte, []byte, float64) {
 	cpuIndicator.With(prometheus.Labels{"use":  "errors"}).Set(PluginData["errors"].(float64))
 
 
-	// Prepare a better answer!
-	PluginData["measure"] = struct {	
-			Cpupercent 		[]float64	`json:"cpupercent"`
-			Cpu				float64		`json:"cpu"`
-			Use				float64		`json:"use"`
-			Latency			float64		`json:"latency"`
-			Throughput		float64		`json:"throughput"`
-			Throughputmax	float64		`json:"throughputmax"`
-	} {		Cpupercent:		PluginData["cpupercent"].([]float64),
-			Cpu:			PluginData["cpu"].(float64),
-			Use:			PluginData["use"].(float64),
-			Throughput:		PluginData["throughput"].(float64),
-			Throughputmax:	PluginData["throughputmax"].(float64),
-	}
+	// // Prepare a better answer!
+	// PluginData["measure"] = struct {	
+	// 		Cpupercent 		[]float64	`json:"cpupercent"`
+	// 		Cpu				float64		`json:"cpu"`
+	// 		Use				float64		`json:"use"`
+	// 		Latency			float64		`json:"latency"`
+	// 		Throughput		float64		`json:"throughput"`
+	// 		Throughputmax	float64		`json:"throughputmax"`
+	// } {		Cpupercent:		PluginData["cpupercent"].([]float64),
+	// 		Cpu:			PluginData["cpu"].(float64),
+	// 		Use:			PluginData["use"].(float64),
+	// 		Throughput:		PluginData["throughput"].(float64),
+	// 		Throughputmax:	PluginData["throughputmax"].(float64),
+	// }
 
 	//myMeasure, _		:= json.Marshal(PluginData["measure"])
 	myMeasure, _ 	:= json.Marshal(PluginData)
